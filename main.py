@@ -57,7 +57,7 @@ def collide(obj1, obj2):
 
 
 class Ship:
-    COOLDOWN = 8
+    COOLDOWN = 10
 
     def __init__(self, x, y, ship_img, laser_img, health=100):
         self.x = x
@@ -105,6 +105,8 @@ class Ship:
 
 
 class Player(Ship):
+    enemy_kills = 0
+
     def __int__(self, x, y, ship_img, laser_img, health=100):
         super().__init__(x, y, ship_img, laser_img, health)
 
@@ -119,9 +121,11 @@ class Player(Ship):
             else:
                 for obj in objs:
                     if laser.collision(obj):
+                        self.enemy_kills += 1
                         if obj in objs:
                             objs.remove(obj)
-                        self.lasers.remove(laser)
+                        if laser in self.lasers:
+                            self.lasers.remove(laser)
 
     def healthbar(self, window):
         pygame.draw.rect(window, (255, 0, 0), (self.x, self.y + self.ship_img.get_height() + 10,
@@ -149,7 +153,7 @@ class Enemy(Ship):
             self.cool_down_counter = 1
 
 
-def main():
+def main(main_menu_score):
     run = True
     FPS = 60
     clock = pygame.time.Clock()
@@ -160,26 +164,37 @@ def main():
     level = 0
     lives = 5
 
-    player_vel = 5
+    player_vel = 10
     player = Player(300, 630, PLAYER_SHIP, YELLOW_LASER)
 
     enemies = []
-    enemy_vel = 1
+    enemy_vel = 0.25
     laser_vel = 6
     wave_length = 3
     lost = False
     lost_count = 0
 
+    previous_level_score = main_menu_score[:]
+    highest_score_render = 0
+
     # draws all objects
-    def redraw_window():
+    def redraw_window(render):
         # draw background
         WIN.blit(BG, (0, 0))
         # draw text
         level_label = main_font.render(f"Level: {level}", 1, (255, 255, 255))
         lives_label = main_font.render(f"Lives: {lives}", 1, (255, 255, 255))
+        enemy_kills = main_font.render(f"Kills: {player.enemy_kills}", 1, (255, 255, 255))
+        prev_level = main_font.render(f"Highest Level: {previous_level_score[0]}", 1, (0, 0, 255))
+        prev_enemy_kills = main_font.render(f"Highest Kill: {previous_level_score[1]}", 1, (0, 0, 255))
 
-        WIN.blit(level_label, (WIDTH - level_label.get_width() - 10, 10))
         WIN.blit(lives_label, (10, 10))
+        WIN.blit(level_label, (WIDTH - level_label.get_width() - 10, 10))
+        WIN.blit(enemy_kills, (WIDTH - enemy_kills.get_width() - 10, 50))
+
+        if render <= FPS * 5:
+            WIN.blit(prev_level, (WIDTH - prev_level.get_width() - 10, 110))
+            WIN.blit(prev_enemy_kills, (WIDTH - prev_enemy_kills.get_width() - 10, 150))
 
         for enemy in enemies:
             enemy.draw(WIN)
@@ -194,7 +209,8 @@ def main():
 
     while run:
         clock.tick(FPS)
-        redraw_window()
+        redraw_window(highest_score_render)
+        highest_score_render += 1
 
         if lives <= 0 or player.health <= 0:
             lost = True
@@ -202,13 +218,15 @@ def main():
 
         if lost:
             if lost_count > FPS * 3:
-                return level
+                return [level, player.enemy_kills]
             else:
                 continue
 
         if len(enemies) == 0:
             level += 1
-            wave_length += 6
+            wave_length += 4
+            if enemy_vel <= 2.5:
+                enemy_vel += 0.5
             for i in range(wave_length):
                 COLOUR_MAP = {
                     "red": (RED_ENEMY_SHIP, RED_LASER),
@@ -256,23 +274,40 @@ def main():
         player.move_lasers(-laser_vel, enemies)
 
 
-def main_menu():
-    highest_level = 0
-    title_font = pygame.font.Font(os.path.join("assets", "INVASION2000.TTF"), 20)
+main_menu_scores = [0,0]
+
+def main_menu(main_menu_scores):
+    title_font = pygame.font.Font(os.path.join("assets", "INVASION2000.TTF"), 40)
     run = True
     while run:
         WIN.blit(BG, (0, 0))
-        title_label = title_font.render(f"Press the mouse to begin...HIGHEST SCORE: LVL {highest_level}", 1,
+        title_label = title_font.render(f"Press the mouse to begin...", 1,
                                         (255, 255, 255))
+        highest_score = title_font.render(
+            f"HIGHEST SCORE: LVL {main_menu_scores[0]}",
+            1,
+            (255, 255, 255))
+        highest_kills = title_font.render(
+            f"HIGHEST KILLS: {main_menu_scores[1]}",
+            1,
+            (255, 255, 255))
         WIN.blit(title_label, (WIDTH / 2 - title_label.get_width() / 2, 350))
+        WIN.blit(highest_score, (WIDTH / 2 - title_label.get_width() / 2, 400))
+        WIN.blit(highest_kills, (WIDTH / 2 - title_label.get_width() / 2, 450))
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
             if event.type == pygame.MOUSEBUTTONDOWN:
-                highest_level = main()
+                current_level = main(main_menu_scores)
+
+                if current_level[0] >= main_menu_scores[0]:
+                    main_menu_scores[0] = current_level[0]
+
+                if current_level[1] >= main_menu_scores[1]:
+                    main_menu_scores[1] = current_level[1]
 
     pygame.quit()
 
 
-main_menu()
+main_menu(main_menu_scores)
